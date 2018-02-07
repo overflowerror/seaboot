@@ -1,0 +1,2 @@
+# seaboot
+Bootstrap C-projects
