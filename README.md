@@ -25,3 +25,10 @@ $ make
 ```
 
 The compiled files are in `./bin/`.
+
+## TODO
+
+- fail-tollerant wrappers for malloc/realloc
+- automated getopt-wrapper (ev with help message generator)
+- simplified socket-management
+- simplified process-management (fork/exec, shm, semaphores, pthread, ...)
