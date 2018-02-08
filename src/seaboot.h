@@ -65,14 +65,14 @@ typedef void (*eventListener_t)(event_t);
 typedef void (*init_t)(void);
 typedef void (*loop_t)(nstime_t);
 
-extern struct boot {
-	init_t init;
-	loop_t loop;
+struct events {
 	bool (*addEventListener)(event_t, eventListener_t);
 	bool (*removeEventListener)(event_t, eventListener_t);
 	bool (*enableSignal)(event_t);
 	bool (*disableSignal)(event_t);
+};
 
+struct time {
 	nstime_t (*getRealTime)(void);
 	nstime_t (*getRelativeTime)(void);
 	nstime_t (*getProcessTime)(void);
@@ -85,6 +85,14 @@ extern struct boot {
 	void (*startInterval)(timer_t, unsigned long);
 	void (*stopTimer)(timer_t);
 	void (*deleteTimer)(timer_t);
+};
+
+extern struct boot {
+	init_t init;
+	loop_t loop;
+	
+	struct events events;
+	struct time time;
 
 	void* (*allocate)(size_t);
 	void* (*reallocate)(void*, size_t);

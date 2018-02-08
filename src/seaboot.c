@@ -46,23 +46,22 @@ static void* allocate(size_t);
 static void* reallocate(void*, size_t);
 
 struct boot boot = {
-	.addEventListener = addEventListener,
-	.removeEventListener = removeEventListener,
-	.enableSignal = enableSignal,
-	.disableSignal = disableSignal,
+	.events.addEventListener = addEventListener,
+	.events.removeEventListener = removeEventListener,
+	.events.enableSignal = enableSignal,
+	.events.disableSignal = disableSignal,
 
-	.getRealTime = getRealTime,
-	.getRelativeTime = getRelativeTime,
-	.getProcessTime = getProcessTime,
-	.getThreadTime = getThreadTime,
-	.timer = timer,
-
-	.createSignalTimer = createSignalTimer,
-	.createThreadTimer = createThreadTimer,
-	.startTimer = startTimer,
-	.startInterval = startInterval,
-	.stopTimer = stopTimer,
-	.deleteTimer = deleteTimer,
+	.time.getRealTime = getRealTime,
+	.time.getRelativeTime = getRelativeTime,
+	.time.getProcessTime = getProcessTime,
+	.time.getThreadTime = getThreadTime,
+	.time.timer = timer,
+	.time.createSignalTimer = createSignalTimer,
+	.time.createThreadTimer = createThreadTimer,
+	.time.startTimer = startTimer,
+	.time.startInterval = startInterval,
+	.time.stopTimer = stopTimer,
+	.time.deleteTimer = deleteTimer,
 
 	.allocate = allocate,
 	.reallocate = reallocate,
@@ -200,7 +199,7 @@ nstime_t timer(void (*function)(void)) {
 	return end - start;
 }
 
-void timerHandler(union sigval target) {
+static void timerHandler(union sigval target) {
 	debug("Timer handler: Starting target.\n");
 	((void (*)(void))(target.sival_ptr))();
 }

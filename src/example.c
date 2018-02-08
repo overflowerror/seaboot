@@ -19,7 +19,7 @@ void intervalHandler() {
 	fprintf(stderr, "interval count %d.\n", count);
 	if (count > 4) {
 		fprintf(stderr, "Provoking error.\n");
-		boot.enableSignal(SHUTDOWN); // SHUTDOWN is not a signal
+		boot.events.enableSignal(SHUTDOWN); // SHUTDOWN is not a signal
 	}
 }
 
@@ -29,13 +29,13 @@ void init() {
 	boot.mode = WAIT;
 	boot.debug = true;
 
-	boot.addEventListener(SHUTDOWN, shutdownHandler);
-	boot.addEventListener(SIGUSR1, eventHandler);
-	boot.enableSignal(SIGUSR1);
+	boot.events.addEventListener(SHUTDOWN, shutdownHandler);
+	boot.events.addEventListener(SIGUSR1, eventHandler);
+	boot.events.enableSignal(SIGUSR1);
 
-	timer_t timer = boot.createSignalTimer(SIGUSR1);
-	boot.startTimer(timer, 5000);
+	timer_t timer = boot.time.createSignalTimer(SIGUSR1);
+	boot.time.startTimer(timer, 5000);
 
-	timer_t interval = boot.createThreadTimer(&intervalHandler);
-	boot.startInterval(interval, 2000);
+	timer_t interval = boot.time.createThreadTimer(&intervalHandler);
+	boot.time.startInterval(interval, 2000);
 }
