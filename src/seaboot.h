@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <time.h>
 
+#define lambda(r, f) ({r __fn__ f __fn__; })
+
 #define EXIT_SUCCESS 0
 #define EXIT_ERROR 3
 
