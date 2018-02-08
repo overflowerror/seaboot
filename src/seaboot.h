@@ -86,6 +86,9 @@ extern struct boot {
 	void (*stopTimer)(timer_t);
 	void (*deleteTimer)(timer_t);
 
+	void* (*allocate)(size_t);
+	void* (*reallocate)(void*, size_t);
+
 	bootmode_t mode;
 	bool debug;
 

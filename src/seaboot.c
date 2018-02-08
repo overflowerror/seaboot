@@ -42,6 +42,9 @@ static void deleteTimer(timer_t);
 
 static void eventHandler(event_t);
 
+static void* allocate(size_t);
+static void* reallocate(void*, size_t);
+
 struct boot boot = {
 	.addEventListener = addEventListener,
 	.removeEventListener = removeEventListener,
@@ -60,6 +63,9 @@ struct boot boot = {
 	.startInterval = startInterval,
 	.stopTimer = stopTimer,
 	.deleteTimer = deleteTimer,
+
+	.allocate = allocate,
+	.reallocate = reallocate,
 
 	.mode = STANDARD,
 	.debug = false
@@ -103,7 +109,9 @@ bool addEventListener(event_t event, eventListener_t listener) {
 		events[event].override = false;
 		events[event].number = 0;
 	}
-	events[event].listeners = realloc(events[event].listeners, (events[event].number + 1) * sizeof(eventListener_t)); // TODO replace with own function
+	events[event].listeners = reallocate(events[event].listeners, (events[event].number + 1) * sizeof(eventListener_t));
+	if (events[event].listeners == NULL)
+		return false;
 	events[event].listeners[events[event].number] = listener;
 	debug("New event listener for event %d (%s) on position %d.\n", event, getEventName(event), events[event].number);
 	events[event].number++;
@@ -306,11 +314,32 @@ static void errorHandler(event_t event) {
 	exit(EXIT_ERROR);
 }
 
+void* allocate(size_t size) {
+	void* result = malloc(size);
+	if (result == NULL) {
+		boot.error = strerror(errno);
+		eventHandler(LIBERROR);
+	}
+	return result;
+}
+
+void* reallocate(void* pointer, size_t size) {
+	void* result = realloc(pointer, size);
+	if (result == NULL) {
+		boot.error = strerror(errno);
+		eventHandler(LIBERROR);
+		result = pointer;
+	}
+	return result;
+}
+
 int main(char** argv, int argc) {
 	for(int i = 0; i < NUMBER_OF_EVENTS; i++) {		
 		debug("Setup %s %d (%s)...\n", IS_SIGNAL(i) ? "signal" : "event", i, getEventName(i));
 		events[i].number = 0;
-		events[i].listeners = malloc(1 * sizeof(eventListener_t)); // TODO replace by own function
+		events[i].listeners = allocate(1 * sizeof(eventListener_t));
+		if (events[i].listeners == NULL)
+			exit(EXIT_ERROR); // just to make sure
 		events[i].listeners[0] = NULL;
 		events[i].override = false;
 		events[i].isSignalHandler = false;
