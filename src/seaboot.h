@@ -14,6 +14,8 @@
 
 #define IS_SIGNAL(v) (v >= 1 && v <= 31)
 
+#define MAX_OPTIONS 20
+
 typedef unsigned long long int nstime_t;
 
 typedef enum bootmode {
@@ -72,6 +74,8 @@ struct events {
 	bool (*removeEventListener)(event_t, eventListener_t);
 	bool (*enableSignal)(event_t);
 	bool (*disableSignal)(event_t);
+	const char* (*getName)(event_t event);
+	const char* (*getDescription)(event_t event);
 };
 
 struct time {
@@ -89,12 +93,34 @@ struct time {
 	void (*deleteTimer)(timer_t);
 };
 
+#define OPTION_UNKNOWN (-1)
+#define OPTION_MISSING (-2)
+#define OPTION_HANDLER_ERROR (-3)
+
+#define NO_SHORT_OPTION 0
+#define NO_LONG_OPTION NULL
+
+typedef enum optionArgument {
+	NO_ARGUMENT,
+	OPTIONAL_ARGUMENT,
+	REQUIRED_ARGUMENT
+} optionArgument_t;
+
+typedef bool (*optionHandler_t)(const char*);
+
+struct options {
+	bool (*add)(char, const char*, optionArgument_t, bool, optionHandler_t);
+	int (*parse)(void);
+	const char* (*getNextArgument)();
+};
+
 extern struct boot {
 	init_t init;
 	loop_t loop;
 	
 	struct events events;
 	struct time time;
+	struct options options;
 
 	void* (*allocate)(size_t);
 	void* (*reallocate)(void*, size_t);

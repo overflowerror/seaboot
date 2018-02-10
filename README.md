@@ -28,6 +28,5 @@ The compiled files are in `./bin/`.
 
 ## TODO
 
-- automated getopt-wrapper (ev with help message generator)
 - simplified socket-management
 - simplified process-management (fork/exec, shm, semaphores, pthread, ...)

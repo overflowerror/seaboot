@@ -11,8 +11,21 @@
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
+#include <getopt.h>
+#include <assert.h>
 
 static const char* getEventName(event_t event) {
+	// TODO
+	if (IS_SIGNAL(event))
+		return strsignal(event);
+	switch(event) {
+		case SHUTDOWN: return "Shutdown"; break;
+		case LIBERROR: return "Lib-Error"; break;
+		default: return "Unknown"; break;
+	}
+}
+
+static const char* getEventDescription(event_t event) {
 	if (IS_SIGNAL(event))
 		return strsignal(event);
 	switch(event) {
@@ -45,11 +58,17 @@ static void eventHandler(event_t);
 static void* allocate(size_t);
 static void* reallocate(void*, size_t);
 
+static bool addOption(char, const char*, optionArgument_t, bool, optionHandler_t);
+static int parseOptions(void);
+static const char* getNextArgument();
+
 struct boot boot = {
 	.events.addEventListener = addEventListener,
 	.events.removeEventListener = removeEventListener,
 	.events.enableSignal = enableSignal,
 	.events.disableSignal = disableSignal,
+	.events.getName = getEventName,
+	.events.getDescription = getEventDescription,
 
 	.time.getRealTime = getRealTime,
 	.time.getRelativeTime = getRelativeTime,
@@ -62,6 +81,10 @@ struct boot boot = {
 	.time.startInterval = startInterval,
 	.time.stopTimer = stopTimer,
 	.time.deleteTimer = deleteTimer,
+
+	.options.add = addOption,
+	.options.parse = parseOptions,
+	.options.getNextArgument = getNextArgument,
 
 	.allocate = allocate,
 	.reallocate = reallocate,
@@ -332,7 +355,150 @@ void* reallocate(void* pointer, size_t size) {
 	return result;
 }
 
-int main(char** argv, int argc) {
+struct optionHandlers {
+	char shortOption;
+	const char* longOption;
+	optionArgument_t argument;
+	bool required;
+	optionHandler_t handler;
+	int seen;
+};
+
+int optionNumber = 0;
+struct optionHandlers options[MAX_OPTIONS];
+char** arguments;
+int argumentCount;
+
+bool addOption(char shortOption, const char* longOption, optionArgument_t argument, bool required, optionHandler_t handler) {
+	if ((shortOption == NO_SHORT_OPTION && longOption == NO_LONG_OPTION) || handler == NULL) {
+		boot.error = "Option settings are invalid.";
+		return false;
+	}
+
+	options[optionNumber++] = (struct optionHandlers) {
+		.shortOption = shortOption,
+		.longOption = longOption,
+		.argument = argument,
+		.required = required,
+		.handler = handler,
+		.seen = 0
+	};
+
+	return true;
+}
+
+int parseOptions() {
+	debug("Parseing options. Got %d options.\n", optionNumber);
+	if (optionNumber == 0)
+		return argumentCount - 1;
+
+	debug("Generating short-option-string & long-option-array.\n");
+	int number_short = 0;
+	char short_options[optionNumber * 3 + 1];
+	memset(short_options, 0, optionNumber * 3 + 1);
+	int number_long = 0;
+	struct option long_options[optionNumber + 1];
+	memset(long_options, 0, (optionNumber + 1) * sizeof(struct option));
+	for (int i = 0; i < optionNumber; i++) {
+		struct optionHandlers handler = options[i];
+		if (handler.shortOption != NO_SHORT_OPTION) {
+			short_options[number_short++] = handler.shortOption;
+			debug("Got short option: %c\n", handler.shortOption);
+			if (handler.argument == REQUIRED_ARGUMENT)
+				short_options[number_short++] = ':';
+			if (handler.argument == OPTIONAL_ARGUMENT) {
+				short_options[number_short++] = ':';
+				short_options[number_short++] = ':';
+			}
+		}
+		if (handler.longOption != NO_LONG_OPTION) {
+			int arg;
+			switch(handler.argument) {
+				case NO_ARGUMENT:
+					arg = no_argument;
+					break;
+				case OPTIONAL_ARGUMENT:
+					arg = optional_argument;
+					break;
+				case REQUIRED_ARGUMENT:
+					arg = required_argument;
+					break;
+				default:
+					assert(false);
+			}
+			debug("Got long option: %s (arg: %d, short: %c)\n", handler.longOption, arg, handler.shortOption);
+			long_options[number_long++] = (struct option) {
+				.name = handler.longOption, 
+				.has_arg = arg, 
+				.flag = NULL, 
+				.val = handler.shortOption
+			};
+		}
+	}
+
+	long_options[number_long] = (struct option) {
+		.name = NULL, 
+		.has_arg = 0, 
+		.flag = NULL, 
+		.val = 0
+	};
+	
+	int tmp, option_index;
+	debug("getopt_long(%d, %x, %s, %x, %x)\n", argumentCount, arguments, short_options, long_options, option_index);
+	while((tmp = getopt_long(argumentCount, arguments, short_options, long_options, &option_index)) != -1) {
+		debug("getopt: %d\n", tmp);
+		struct optionHandlers* handler = NULL;
+		if (tmp == '?') {
+			boot.error = "Unknown option.";
+			return OPTION_UNKNOWN;
+		} else if (tmp == NO_SHORT_OPTION) {
+			for (int i = 0; i < optionNumber; i++) {
+				if (strcmp(options[i].longOption, long_options[option_index].name) == 0) {
+					handler = &(options[i]);
+					break;
+				} 
+			}
+			if (handler == NULL)
+				assert(false);
+		} else {
+			for (int i = 0; i < optionNumber; i++) {
+				debug("Checking %c (%d) - %c (%d).\n", tmp, tmp, options[i].shortOption, options[i].shortOption);
+				if (tmp == options[i].shortOption) {
+					handler = &(options[i]);
+					break;
+				}
+			}
+			if (handler == NULL)
+				assert(false);
+		}
+
+		handler->seen++;
+		debug("Starting handler for %s (%c).\n", handler->longOption, (handler->shortOption == NO_SHORT_OPTION) ? '-' : handler->shortOption);
+		if (!(handler->handler(optarg))) {
+			boot.error = "Option handler returned an error.";
+			return OPTION_HANDLER_ERROR;
+		}
+	}
+
+	for (int i = 0; i < optionNumber; i++) {
+		if (options[i].seen == 0 && options[i].required) {
+			boot.error = "Required option is missing.";
+			return OPTION_MISSING;
+		}
+	}
+
+	return argumentCount - optind;
+}
+
+const char* getNextArgument() {
+	if (argumentCount == optind)
+		return NULL;
+	return arguments[optind++];
+}
+
+int main(int argc, char** argv) {
+	arguments = argv;
+	argumentCount = argc;
 	for(int i = 0; i < NUMBER_OF_EVENTS; i++) {		
 		debug("Setup %s %d (%s)...\n", IS_SIGNAL(i) ? "signal" : "event", i, getEventName(i));
 		events[i].number = 0;
